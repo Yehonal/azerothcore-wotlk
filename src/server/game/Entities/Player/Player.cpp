@@ -4229,8 +4229,10 @@ void Player::removeSpell(uint32 spellId, uint8 removeSpecMask, bool onlyTemporar
     if (GetTalentSpellCost(firstRankSpellId))
     {
         SpellsRequiringSpellMapBounds spellsRequiringSpell = sSpellMgr->GetSpellsRequiringSpellBounds(spellId);
-        for (SpellsRequiringSpellMap::const_iterator itr = spellsRequiringSpell.first; itr != spellsRequiringSpell.second; ++itr)
-            removeSpell(itr->second, removeSpecMask, onlyTemporary);
+        for (auto spellsItr = spellsRequiringSpell.first; spellsItr != spellsRequiringSpell.second; ++spellsItr)
+        {
+            removeSpell(spellsItr->second, removeSpecMask, onlyTemporary);
+        }
     }
 
     // pussywizard: re-search, it can be corrupted in prev loop
@@ -7732,12 +7734,14 @@ uint32 Player::GetZoneIdFromDB(ObjectGuid guid)
         // stored zone is zero, use generic and slow zone detection
         stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHAR_POSITION_XYZ);
         stmt->setUInt32(0, guidLow);
-        PreparedQueryResult result = CharacterDatabase.Query(stmt);
+        PreparedQueryResult posResult = CharacterDatabase.Query(stmt);
 
-        if (!result)
+        if (!posResult)
+        {
             return 0;
+        }
 
-        fields = result->Fetch();
+        fields = posResult->Fetch();
         uint32 map = fields[0].GetUInt16();
         float posx = fields[1].GetFloat();
         float posy = fields[2].GetFloat();
@@ -15182,11 +15186,15 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                     break;
                 case GOSSIP_OPTION_VENDOR:
                     {
-                        VendorItemData const* vendorItems = itr->second.ActionMenuID ? sObjectMgr->GetNpcVendorItemList(itr->second.ActionMenuID) : creature->GetVendorItems();
-                        if (!vendorItems || vendorItems->Empty())
+                        if (!creature->isVendorWithIconSpeak())
                         {
-                            LOG_ERROR("sql.sql", "Creature %s have UNIT_NPC_FLAG_VENDOR but have empty trading item list.", creature->GetGUID().ToString().c_str());
-                            canTalk = false;
+                            VendorItemData const* vendorItems = itr->second.ActionMenuID ? sObjectMgr->GetNpcVendorItemList(itr->second.ActionMenuID) : creature->GetVendorItems();
+                            if (!vendorItems || vendorItems->Empty())
+                            {
+                                LOG_ERROR("sql.sql", "Creature %s have UNIT_NPC_FLAG_VENDOR but have empty trading item list.", creature->GetGUID().ToString().c_str());
+                                canTalk = false;
+                            }
+                            break;
                         }
                         break;
                     }
@@ -15225,6 +15233,15 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                     }
                     break;
                 case GOSSIP_OPTION_GOSSIP:
+                    if (creature->isVendorWithIconSpeak())
+                    {
+                        VendorItemData const* vendorItems = creature->GetVendorItems();
+                        if (!vendorItems || vendorItems->Empty())
+                        {
+                            canTalk = false;
+                        }
+                    }
+                    break;
                 case GOSSIP_OPTION_SPIRITGUIDE:
                 case GOSSIP_OPTION_INNKEEPER:
                 case GOSSIP_OPTION_BANKER:
@@ -19073,9 +19090,11 @@ void Player::_LoadInventory(PreparedQueryResult result, uint32 timeDiff)
                     }
                     else if (invalidBagMap.find(bagGuid) != invalidBagMap.end())
                     {
-                        std::map<ObjectGuid::LowType, Item*>::iterator itr = invalidBagMap.find(bagGuid);
-                        if (std::find(problematicItems.begin(), problematicItems.end(), itr->second) != problematicItems.end())
+                        std::map<ObjectGuid::LowType, Item*>::iterator iterator = invalidBagMap.find(bagGuid);
+                        if (std::find(problematicItems.begin(), problematicItems.end(), iterator->second) != problematicItems.end())
+                        {
                             err = EQUIP_ERR_INT_BAG_ERROR;
+                        }
                     }
                     else
                     {
