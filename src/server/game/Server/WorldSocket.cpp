@@ -446,7 +446,9 @@ void WorldSocket::HandleAuthSession(WorldPacket & recvPacket)
     stmt->setInt32(0, int32(realm.Id.Realm));
     stmt->setString(1, authSession->Account);
 
-    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback(std::bind(&WorldSocket::HandleAuthSessionCallback, this, authSession, std::placeholders::_1)));
+    //_queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback(std::bind(&WorldSocket::HandleAuthSessionCallback, this, authSession, std::placeholders::_1)));
+    PreparedQueryResult result = LoginDatabase.Query(stmt);
+    this->HandleAuthSessionCallback(authSession, result);
 }
 
 void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSession, PreparedQueryResult result)
